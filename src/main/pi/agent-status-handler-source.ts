@@ -107,7 +107,7 @@ export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] 
     '    agentEndReported = false',
     // Why: a turn cannot begin under a dialog holding input focus, so this is the one
     // boundary that can recover a modal whose close never arrived.
-    ...(kind === 'pi' ? ['    piUiPromptActive = false'] : []),
+    ...(kind === 'pi' ? ['    piUiPromptDepth = 0'] : []),
     "    post('agent_start')",
     '  })',
     '',

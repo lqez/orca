@@ -281,6 +281,20 @@ describe('getPiTitlebarExtensionSource', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('only the outermost of nested dialogs moves the title', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('agent_start')
+    await harness.callHook('ui_prompt_start')
+    await harness.callHook('ui_prompt_start')
+    await harness.callHook('ui_prompt_end')
+    // Why: the outer dialog still holds input focus.
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+
+    await harness.callHook('ui_prompt_end')
+    expect(harness.lastTitle()).toMatch(BRAILLE_RE)
+  })
+
   it('ignores an unmatched dialog close', async () => {
     const harness = createHarness()
 

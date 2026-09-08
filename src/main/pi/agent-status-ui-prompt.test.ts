@@ -183,6 +183,40 @@ describe('Pi UI prompt status', () => {
     expect(harness.statuses.at(-1)?.payload.state).toBe('working')
   })
 
+  it('keeps the wait until the outermost of nested modals closes', async () => {
+    const harness = createHarness()
+    await post(harness, 'ui_prompt_start')
+    await post(harness, 'ui_prompt_start')
+    await harness.callHook('ui_prompt_end', {}, { isIdle: () => true })
+    await flushPosts()
+    expect(harness.statuses.at(-1)?.payload.state).toBe('waiting')
+    await harness.callHook('ui_prompt_end', {}, { isIdle: () => true })
+    await flushPosts()
+    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
+  })
+
+  it('lets settlement still complete a turn whose modal lost its runner', async () => {
+    const harness = createHarness()
+    await post(harness, 'agent_start')
+    await post(harness, 'agent_settled')
+    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
+    await post(harness, 'ui_prompt_start')
+    await harness.callHook(
+      'ui_prompt_end',
+      {},
+      {
+        isIdle: () => {
+          throw new Error('extension runner is no longer active')
+        }
+      }
+    )
+    await flushPosts()
+    expect(harness.statuses.at(-1)?.payload.state).toBe('working')
+    // Why: without re-arming the completion report the pane would spin forever.
+    await post(harness, 'agent_settled')
+    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
+  })
+
   it('ignores an unmatched prompt end', async () => {
     const harness = createHarness()
     await post(harness, 'ui_prompt_end')
