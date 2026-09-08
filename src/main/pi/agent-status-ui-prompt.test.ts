@@ -135,6 +135,43 @@ describe('Pi UI prompt status', () => {
     expect(harness.statuses.at(-1)?.payload.state).toBe('done')
   })
 
+  it('still captures the assistant reply that lands while a modal is open', async () => {
+    const harness = createHarness()
+    await post(harness, 'agent_start')
+    await post(harness, 'message_end', {
+      message: { role: 'assistant', content: [{ type: 'text', text: 'Before modal' }] }
+    })
+    await post(harness, 'ui_prompt_start')
+    await post(harness, 'message_end', {
+      message: { role: 'assistant', content: [{ type: 'text', text: 'Final reply' }] }
+    })
+    await harness.callHook('ui_prompt_end', {}, { isIdle: () => true })
+    await flushPosts()
+    expect(harness.statuses.at(-1)?.payload).toMatchObject({
+      state: 'done',
+      lastAssistantMessage: 'Final reply'
+    })
+    expect(harness.statuses.at(-1)?.payload.toolName).toBeUndefined()
+    expect(harness.statuses.at(-1)?.payload.interactivePrompt).toBeUndefined()
+  })
+
+  it('still reports the close when the modal invalidated its own runner', async () => {
+    const harness = createHarness()
+    await post(harness, 'ui_prompt_start')
+    await harness.callHook(
+      'ui_prompt_end',
+      {},
+      {
+        isIdle: () => {
+          throw new Error('extension runner is no longer active')
+        }
+      }
+    )
+    await flushPosts()
+    // Why: a lost close would strand the pane on waiting; pi's own default is idle.
+    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
+  })
+
   it('ignores an unmatched prompt end', async () => {
     const harness = createHarness()
     await post(harness, 'ui_prompt_end')

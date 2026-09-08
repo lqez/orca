@@ -3,6 +3,7 @@ import { runInNewContext } from 'node:vm'
 import ts from 'typescript-api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { detectAgentStatusFromTitle } from '../../shared/agent-detection'
 import { getPiTitlebarExtensionSource } from './titlebar-extension-source'
 
 const BRAILLE_RE = /[⠀-⣿]/
@@ -23,6 +24,7 @@ type Harness = {
 const CWD = '/repo/orca-app'
 const SESSION = 'omp-session'
 const IDLE_TITLE = `π - ${SESSION} - orca-app`
+const PROMPT_TITLE = `π ! ${SESSION} - orca-app`
 
 function createHarness(options: { paneKey?: string; isIdle?: () => boolean } = {}): Harness {
   const titles: string[] = []
@@ -246,5 +248,55 @@ describe('getPiTitlebarExtensionSource', () => {
     await harness.callHook('session_shutdown')
     expect(vi.getTimerCount()).toBe(0)
     expect(harness.lastTitle()).toBe(IDLE_TITLE)
+  })
+
+  it('marks a mid-turn dialog as needing input and holds it against the spinner', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('agent_start')
+    await harness.callHook('ui_prompt_start')
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+    expect(detectAgentStatusFromTitle(PROMPT_TITLE)).toBe('permission')
+
+    // Why: the spinner interval keeps running, but must not repaint over the marker.
+    await vi.advanceTimersByTimeAsync(800)
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+
+    await harness.callHook('ui_prompt_end')
+    expect(harness.lastTitle()).toMatch(BRAILLE_RE)
+    expect(vi.getTimerCount()).toBe(1)
+  })
+
+  it('returns an idle pane to its plain title when the dialog closes', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('ui_prompt_start')
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+
+    await harness.callHook('ui_prompt_end')
+    expect(harness.lastTitle()).toBe(IDLE_TITLE)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('only the outermost of nested dialogs moves the title', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('agent_start')
+    await harness.callHook('ui_prompt_start')
+    await harness.callHook('ui_prompt_start')
+    await harness.callHook('ui_prompt_end')
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+
+    await harness.callHook('ui_prompt_end')
+    expect(harness.lastTitle()).toMatch(BRAILLE_RE)
+  })
+
+  it('ignores an unmatched dialog close', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('agent_start')
+    const titleCount = harness.titles.length
+    await harness.callHook('ui_prompt_end')
+    expect(harness.titles.length).toBe(titleCount)
   })
 })
