@@ -25,6 +25,7 @@ type FileLinkHitTestDeps = {
   wslDistro?: string | null
   pathExistsCache?: Map<string, boolean>
   openWithSystemDefault?: boolean
+  activate?: (filePath: string, line: number | null, column: number | null) => boolean
 }
 
 export function openFilePathLinkAtBufferPosition(
@@ -97,6 +98,9 @@ export function openFilePathLinkAtBufferPosition(
     const uncachedMatch = matches.find((match) => match.cachedExists !== false)
     const match = cachedMatch ?? knownWorktreeRootMatch ?? uncachedMatch
     if (match) {
+      if (deps.activate) {
+        return deps.activate(match.absolutePath, match.line, match.column)
+      }
       openDetectedFilePath(match.absolutePath, match.line, match.column, {
         ...deps,
         openWithSystemDefault: deps.openWithSystemDefault === true

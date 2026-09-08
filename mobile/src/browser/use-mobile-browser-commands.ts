@@ -171,6 +171,7 @@ export function useMobileBrowserCommands(args: MobileBrowserCommandArgs) {
       const currentLayout = layoutRef.current
       const geometry = computeBrowserFrameGeometry(currentLayout, frameMetadataRef.current)
       const localZoom = zoomRef.current.scale
+      // CDP wheel deltas use visual pixels even when pointer positions use CSS pixels.
       const scale = (geometry?.scale ?? 1) * localZoom
       const cssDx = screenDx / scale
       const cssDy = screenDy / scale

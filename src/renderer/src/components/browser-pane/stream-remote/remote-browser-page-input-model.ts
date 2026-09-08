@@ -1,4 +1,5 @@
 import type { BrowserScreencastFrameMetadata } from '../../../../../shared/browser-screencast-protocol'
+import { browserScreencastPageScale } from '../../../../../shared/browser-screencast-input-scale'
 import type { BrowserTabInfo } from '../../../../../shared/runtime-types'
 import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import type {
@@ -164,6 +165,11 @@ export function resolveRemoteBrowserCssViewport(input: {
 }): RemoteBrowserViewportSize {
   const deviceWidth = getPositiveFiniteNumber(input.frameMetadata?.deviceWidth)
   const deviceHeight = getPositiveFiniteNumber(input.frameMetadata?.deviceHeight)
+  const pageScale = browserScreencastPageScale(input.frameMetadata)
+  // Mobile layout scaling and page zoom can change while the requested viewport stays fixed.
+  if (pageScale !== 1 && deviceWidth && deviceHeight) {
+    return { width: deviceWidth / pageScale, height: deviceHeight / pageScale }
+  }
   const requestedWidth = getPositiveFiniteNumber(input.requestedViewportSize?.width)
   const requestedHeight = getPositiveFiniteNumber(input.requestedViewportSize?.height)
   const framesMatchRequest =
@@ -175,14 +181,16 @@ export function resolveRemoteBrowserCssViewport(input: {
       height: deviceHeight ?? input.naturalSize.height
     }
   }
+  const cachedWidth = getPositiveFiniteNumber(input.cssViewportSize?.width)
+  const cachedHeight = getPositiveFiniteNumber(input.cssViewportSize?.height)
   return {
     width:
-      getPositiveFiniteNumber(input.cssViewportSize?.width) ??
+      (cachedWidth && (!deviceWidth || cachedWidth <= deviceWidth) ? cachedWidth : null) ??
       requestedWidth ??
       deviceWidth ??
       input.naturalSize.width,
     height:
-      getPositiveFiniteNumber(input.cssViewportSize?.height) ??
+      (cachedHeight && (!deviceHeight || cachedHeight <= deviceHeight) ? cachedHeight : null) ??
       requestedHeight ??
       deviceHeight ??
       input.naturalSize.height
