@@ -4,6 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { installTerminalLinkTouchGesture } from './terminal-link-touch-gesture'
 
 const disposables: { dispose: () => void }[] = []
+/**
+ * Builds a happy-dom terminal stub with the gesture installed and touch event helpers.
+ *
+ * Returns the spied `activate` plus senders so each test drives raw touch sequences.
+ */
 function fixture() {
   const element = document.createElement('div')
   element.innerHTML = '<div class="xterm-screen"></div><button>Header</button>'

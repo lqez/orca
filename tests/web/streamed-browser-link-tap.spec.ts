@@ -21,6 +21,12 @@ ${responsive ? '<meta name="viewport" content="width=device-width,initial-scale=
 <a id="external" href="/tests/web/fixtures/mobile-link-tap/destination.html" target="_blank">External link</a>
 <iframe srcdoc="<a id='inner' href='#opened' style='display:block;min-height:48px'>Iframe link</a>"></iframe></main>`
 
+/**
+ * Captures one real screencast frame with its metadata, then stops the screencast.
+ *
+ * The metadata carries the page scale under test, so coordinate mapping is exercised
+ * against values Chromium actually reported rather than hand-written fixtures.
+ */
 async function frame(cdp: CDPSession) {
   const next = new Promise<{
     data: string
@@ -39,6 +45,9 @@ async function frame(cdp: CDPSession) {
   return result
 }
 
+/**
+ * Dispatches a trusted press/release pair at a page point through CDP.
+ */
 async function click(cdp: CDPSession, point: { x: number; y: number }) {
   await cdp.send('Input.dispatchMouseEvent', {
     type: 'mousePressed',

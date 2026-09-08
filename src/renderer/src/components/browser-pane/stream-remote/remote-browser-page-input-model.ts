@@ -152,11 +152,17 @@ export function readRemoteCssViewportSize(result: unknown): RemoteBrowserViewpor
   }
 }
 
-// Why: one runtime screencast is shared, and any later subscriber can re-emulate the page at
-// its own size without notifying this pane. The cached CSS viewport — and this pane's own
-// requested size — only describe the page while frames still report the size we asked for;
-// once someone else owns the viewport, the per-frame device size is the only accurate basis
-// for pointer mapping. Same guard covers our own resize before the restart lands.
+/**
+ * Resolves the CSS viewport that streamed pointer coordinates should be mapped against.
+ *
+ * Why: one runtime screencast is shared, and any later subscriber can re-emulate the page at
+ * its own size without notifying this pane. The cached CSS viewport — and this pane's own
+ * requested size — only describe the page while frames still report the size we asked for;
+ * once someone else owns the viewport, the per-frame device size is the only accurate basis
+ * for pointer mapping. Same guard covers our own resize before the restart lands. A page
+ * scale other than 1 takes precedence, since mobile layout scaling moves the CSS viewport
+ * while the requested size stays fixed.
+ */
 export function resolveRemoteBrowserCssViewport(input: {
   cssViewportSize: RemoteBrowserViewportSize | null
   requestedViewportSize: RemoteBrowserViewportSize | null

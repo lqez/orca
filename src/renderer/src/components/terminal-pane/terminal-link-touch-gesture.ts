@@ -6,6 +6,15 @@ const TAP_MAX_MS = 400
 type TouchTap = { x: number; y: number }
 type PendingTap = TouchTap & { id: number; startedAt: number; viewportY: number }
 
+/**
+ * Recognizes a short, stationary, single-finger tap over a terminal's screen area.
+ *
+ * Why this exists: xterm cancels touchstart, so the browser never synthesizes the
+ * compatibility mouse click that the pane's link handlers wait for. Scrolls, drags, long
+ * presses, multi-touch, selections and canceled gestures are all rejected, so only a
+ * deliberate tap reaches `activate`, which reports whether it consumed the tap. Disposing
+ * removes every listener.
+ */
 export function installTerminalLinkTouchGesture(
   terminal: Terminal,
   activate: (point: TouchTap) => boolean

@@ -54,6 +54,12 @@ useAppStore.setState({
 // The fixture replaces filesystem access only; rendered links, gestures and routing stay real.
 window.api.shell.pathExists = async () => true
 
+/**
+ * Renders a real xterm terminal wired to the pane's actual link routing for browser tests.
+ *
+ * Only filesystem access is stubbed; gestures, linkifiers and the destination chooser are
+ * the shipped components so a test failure means the product path failed.
+ */
 function Fixture() {
   const host = useRef<HTMLDivElement>(null)
   const [request, setRequest] = useState<TerminalLinkActionRequest | null>(null)

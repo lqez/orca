@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { Terminal } from '@xterm/xterm'
 
+/**
+ * Viewport point at the middle of a terminal row, for tapping a known rendered cell.
+ */
 async function cellPoint(page: Page, row: number) {
   const rect = await page.locator('.xterm-screen').boundingBox()
   if (!rect) {

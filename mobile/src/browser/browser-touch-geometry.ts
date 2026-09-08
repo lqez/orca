@@ -57,6 +57,13 @@ export function computeBrowserFrameGeometry(
   }
 }
 
+/**
+ * Maps a point on the streamed frame to the page coordinate to send as browser input.
+ *
+ * Returns null when the point falls outside the rendered frame. Why page scale divides in:
+ * frame dimensions are device-independent pixels while browser input is read as viewport
+ * CSS pixels, so below a page scale of 1 the untouched value lands beside the target.
+ */
 export function mapScreenToBrowserPoint(
   x: number,
   y: number,
@@ -88,6 +95,11 @@ export function mapScreenToBrowserPoint(
   }
 }
 
+/**
+ * Converts a finger-sized touch radius into the page CSS pixels used for link hit testing.
+ *
+ * Falls back to 10 CSS pixels when frame geometry, client zoom or page scale is unusable.
+ */
 export function computeBrowserTouchClickRadiusCss(
   layout: BrowserTouchLayout | null,
   metadata: BrowserScreencastFrameMetadata | null,

@@ -14,7 +14,13 @@ import {
   type TerminalLinkRoutingPreferenceRequester
 } from './terminal-url-link-hit-testing'
 
-// Same guarded OSC 8 lookup as the mobile WebView; labels need not contain their URI.
+/**
+ * Resolves the OSC 8 destination under a buffer cell, or null when the cell carries none.
+ *
+ * Same guarded lookup through xterm internals as the mobile WebView, because a hyperlink's
+ * label need not contain its URI. Any failure degrades to null so the caller falls back to
+ * URL and file-path matching.
+ */
 function oscLinkAtPosition(terminal: Terminal, position: { x: number; y: number }): string | null {
   try {
     const cell = terminal.buffer.active.getLine(position.y - 1)?.getCell(position.x - 1) as
@@ -33,6 +39,14 @@ function oscLinkAtPosition(terminal: Terminal, position: { x: number; y: number 
   }
 }
 
+/**
+ * Routes a qualified terminal touch tap through the pane's existing link handlers.
+ *
+ * Why it rebuilds the action context: the recognizer has already ruled out selection and
+ * drags and dispatched no PTY mouse input, so the pointer-gesture and PTY-mouse guards that
+ * protect the desktop click path would only reject a tap already known to be deliberate.
+ * OSC 8, HTTP and file-path lookups run in the same order as a desktop click.
+ */
 export function installTerminalPaneTouchLinks({
   terminal,
   paneId,

@@ -43,6 +43,12 @@ type MobileBrowserCommandArgs = {
   zoomRef: { current: BrowserZoomState }
 }
 
+/**
+ * Builds the pointer, wheel, keyboard and navigation commands the mobile browser pane sends.
+ *
+ * Why wheel scaling omits page scale: CDP reads wheel deltas in visual pixels even where it
+ * reads pointer positions as CSS pixels, so folding page scale into both would over-scroll.
+ */
 export function useMobileBrowserCommands(args: MobileBrowserCommandArgs) {
   const {
     client,
