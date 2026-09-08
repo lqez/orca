@@ -1,6 +1,35 @@
+import type { PiAgentKind } from '../../shared/pi-agent-kind'
+
 export const ORCA_PI_EXTENSION_FILE = 'orca-titlebar-spinner.ts'
 
-export function getPiTitlebarExtensionSource(): string {
+export function getPiTitlebarExtensionSource(kind: PiAgentKind = 'pi'): string {
+  // Why: OMP reports input waits through its own approval events, which the status
+  // extension already maps. Painting the marker there too would put the title and the
+  // hook in disagreement for the life of the dialog.
+  const uiPromptHandlers =
+    kind === 'pi'
+      ? [
+          "  pi.on('ui_prompt_start', async (_event, ctx) => {",
+          '    if (promptOpen) return',
+          '    promptOpen = true',
+          "    ctx.ui.setTitle(getMarkedTitle(pi, '!'))",
+          '  })',
+          '',
+          "  pi.on('ui_prompt_end', async (_event, ctx) => {",
+          '    if (!promptOpen) return',
+          '    promptOpen = false',
+          '    // Why: a still-live turn resumes its spinner in place; otherwise the pane is idle',
+          '    // and must drop the needs-input marker rather than keep asking for attention.',
+          '    if (timer) {',
+          '      renderFrame(ctx)',
+          '      return',
+          '    }',
+          '    ctx.ui.setTitle(getBaseTitle(pi))',
+          '  })',
+          ''
+        ]
+      : []
+
   return [
     'const BRAILLE_FRAMES = [',
     "  '\\u280b',",
@@ -44,8 +73,10 @@ export function getPiTitlebarExtensionSource(): string {
     '  // inside an agent turn, whose spinner must outlive it, and any newer start clears the',
     '  // marker so a late idle completion cannot stop current work (#16470).',
     '  let idleCompactionOwnsSpinner = false',
-    '  // Why: pi nests dialogs, so only the outermost open/close moves the title.',
-    '  let promptDepth = 0',
+    '  // Why: pi does its own nesting accounting and emits one pair per dialog stack,',
+    '  // matching the status extension. A new turn cannot start under a dialog holding',
+    '  // input focus, so agent_start doubles as recovery if a close is ever lost.',
+    '  let promptOpen = false',
     '  let pendingAgentEndCheck = null',
     '  let pendingAgentEndContext = null',
     '  let agentEndIdleRecheckMs = AGENT_END_IDLE_RECHECK_MS',
@@ -68,14 +99,16 @@ export function getPiTitlebarExtensionSource(): string {
     '  function stopAnimation(ctx) {',
     '    clearPendingAgentEndCheck()',
     '    clearAnimation()',
-    '    ctx.ui.setTitle(getBaseTitle(pi))',
+    '    // Why: settling under an open dialog still leaves the pane waiting on the user, so',
+    '    // the idle title must not retire the marker the dialog is holding.',
+    "    ctx.ui.setTitle(promptOpen ? getMarkedTitle(pi, '!') : getBaseTitle(pi))",
     '  }',
     '',
     '  function renderFrame(ctx) {',
     '    // Why: an 80ms working frame would repaint over the needs-input marker within one',
     '    // tick, so a mid-turn dialog would still look busy everywhere the title is the',
     '    // only evidence. Leave the interval running; the close resumes it in place.',
-    '    if (promptDepth > 0) return',
+    '    if (promptOpen) return',
     '    if (idleCompactionOwnsSpinner && frameIndex >= IDLE_COMPACTION_MAX_FRAMES) {',
     '      stopAnimation(ctx)',
     '      return',
@@ -115,6 +148,7 @@ export function getPiTitlebarExtensionSource(): string {
     '  }',
     '',
     "  pi.on('agent_start', async (_event, ctx) => {",
+    '    promptOpen = false',
     '    startAnimation(ctx)',
     '  })',
     '',
@@ -140,25 +174,7 @@ export function getPiTitlebarExtensionSource(): string {
     "    if (typeof pendingAgentEndCheck.unref === 'function') pendingAgentEndCheck.unref()",
     '  })',
     '',
-    "  pi.on('ui_prompt_start', async (_event, ctx) => {",
-    '    promptDepth++',
-    '    if (promptDepth > 1) return',
-    "    ctx.ui.setTitle(getMarkedTitle(pi, '!'))",
-    '  })',
-    '',
-    "  pi.on('ui_prompt_end', async (_event, ctx) => {",
-    '    if (promptDepth === 0) return',
-    '    promptDepth--',
-    '    if (promptDepth > 0) return',
-    '    // Why: a still-live turn resumes its spinner in place; otherwise the pane is idle',
-    '    // and must drop the needs-input marker rather than keep asking for attention.',
-    '    if (timer) {',
-    '      renderFrame(ctx)',
-    '      return',
-    '    }',
-    '    ctx.ui.setTitle(getBaseTitle(pi))',
-    '  })',
-    '',
+    ...uiPromptHandlers,
     "  pi.on('auto_compaction_start', async (event, ctx) => {",
     "    if (event?.reason !== 'idle') return",
     '    // Why: the idle worker can fire against a turn that just started, and reason alone does',
@@ -175,6 +191,7 @@ export function getPiTitlebarExtensionSource(): string {
     '  })',
     '',
     "  pi.on('session_shutdown', async (_event, ctx) => {",
+    '    promptOpen = false',
     '    stopAnimation(ctx)',
     '  })',
     '}',

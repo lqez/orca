@@ -4,6 +4,7 @@ import ts from 'typescript-api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { detectAgentStatusFromTitle } from '../../shared/agent-detection'
+import type { PiAgentKind } from '../../shared/pi-agent-kind'
 import { getPiTitlebarExtensionSource } from './titlebar-extension-source'
 
 const BRAILLE_RE = /[⠀-⣿]/
@@ -26,7 +27,9 @@ const SESSION = 'omp-session'
 const IDLE_TITLE = `π - ${SESSION} - orca-app`
 const PROMPT_TITLE = `π ! ${SESSION} - orca-app`
 
-function createHarness(options: { paneKey?: string; isIdle?: () => boolean } = {}): Harness {
+function createHarness(
+  options: { paneKey?: string; isIdle?: () => boolean; kind?: PiAgentKind } = {}
+): Harness {
   const titles: string[] = []
   const ctx: TitlebarContext = {
     ui: {
@@ -63,7 +66,7 @@ function createHarness(options: { paneKey?: string; isIdle?: () => boolean } = {
   } as Record<string, unknown>
   context.globalThis = context
 
-  const output = ts.transpileModule(getPiTitlebarExtensionSource(), {
+  const output = ts.transpileModule(getPiTitlebarExtensionSource(options.kind ?? 'pi'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
   }).outputText
   runInNewContext(output, context)
@@ -278,19 +281,6 @@ describe('getPiTitlebarExtensionSource', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('only the outermost of nested dialogs moves the title', async () => {
-    const harness = createHarness()
-
-    await harness.callHook('agent_start')
-    await harness.callHook('ui_prompt_start')
-    await harness.callHook('ui_prompt_start')
-    await harness.callHook('ui_prompt_end')
-    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
-
-    await harness.callHook('ui_prompt_end')
-    expect(harness.lastTitle()).toMatch(BRAILLE_RE)
-  })
-
   it('ignores an unmatched dialog close', async () => {
     const harness = createHarness()
 
@@ -298,5 +288,45 @@ describe('getPiTitlebarExtensionSource', () => {
     const titleCount = harness.titles.length
     await harness.callHook('ui_prompt_end')
     expect(harness.titles.length).toBe(titleCount)
+  })
+
+  it.each(['agent_settled', 'session_shutdown'])(
+    'keeps the marker when %s lands under an open dialog',
+    async (name) => {
+      const harness = createHarness()
+
+      await harness.callHook('agent_start')
+      await harness.callHook('ui_prompt_start')
+      await harness.callHook(name)
+      // Why: settling does not answer the dialog, so the pane still needs the user.
+      const expected = name === 'session_shutdown' ? IDLE_TITLE : PROMPT_TITLE
+      expect(harness.lastTitle()).toBe(expected)
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
+
+  it('keeps the marker across an idle compaction that finishes under a dialog', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('ui_prompt_start')
+    await harness.callHook('auto_compaction_start', { reason: 'idle' })
+    await harness.callHook('auto_compaction_end')
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+  })
+
+  it('recovers the spinner on a new turn when a dialog close was lost', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('ui_prompt_start')
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+
+    // Why: a turn cannot start under a dialog holding input focus, so this is recovery.
+    await harness.callHook('agent_start')
+    await vi.advanceTimersByTimeAsync(80)
+    expect(harness.lastTitle()).toMatch(BRAILLE_RE)
+  })
+
+  it('leaves the marker to OMP approval events instead of painting it', () => {
+    expect(createHarness({ kind: 'omp' }).handlers.ui_prompt_start).toBeUndefined()
   })
 })

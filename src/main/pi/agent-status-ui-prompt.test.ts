@@ -172,6 +172,16 @@ describe('Pi UI prompt status', () => {
     expect(harness.statuses.at(-1)?.payload.state).toBe('done')
   })
 
+  it('recovers on a new turn when a modal close was lost', async () => {
+    const harness = createHarness()
+    await post(harness, 'ui_prompt_start')
+    expect(harness.statuses.at(-1)?.payload.state).toBe('waiting')
+    // Why: a turn cannot begin under a dialog holding input focus, so this is recovery.
+    await post(harness, 'agent_start')
+    await post(harness, 'tool_execution_end', { toolName: 'bash' })
+    expect(harness.statuses.at(-1)?.payload.state).toBe('working')
+  })
+
   it('ignores an unmatched prompt end', async () => {
     const harness = createHarness()
     await post(harness, 'ui_prompt_end')
