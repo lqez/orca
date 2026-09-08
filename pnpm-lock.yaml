@@ -367,7 +367,7 @@ importers:
         specifier: 17.0.0
         version: 17.0.0(emojibase@17.0.0)
       esbuild:
-        specifier: 0.25.12
+        specifier: ^0.25.12
         version: 0.25.12
       happy-dom:
         specifier: ^20.11.8

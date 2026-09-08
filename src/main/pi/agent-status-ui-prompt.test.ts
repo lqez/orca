@@ -100,6 +100,15 @@ describe('Pi UI prompt status', () => {
     expect(harness.statuses.at(-1)?.payload.state).toBe('done')
   })
 
+  it('trusts local turn state over a ctx that claims work on an idle pane', async () => {
+    const harness = createHarness()
+    await post(harness, 'ui_prompt_start')
+    await harness.callHook('ui_prompt_end', {}, { isIdle: () => false })
+    await flushPosts()
+    // Why: no turn ever started, so nothing later would correct a working verdict.
+    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
+  })
+
   it('lets the normal settlement hook finish work after a modal closes', async () => {
     const harness = createHarness()
     await post(harness, 'agent_start')

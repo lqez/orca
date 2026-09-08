@@ -402,6 +402,48 @@ describe('getPiTitlebarExtensionSource', () => {
     expect(harness.lastTitle()).toBe(IDLE_TITLE)
   })
 
+  it('does not reject when the dialog ctx can no longer paint', async () => {
+    const harness = createHarness()
+    const throwing = {
+      ui: {
+        setTitle: () => {
+          throw new Error('extension runner is no longer active')
+        }
+      }
+    }
+
+    await expect(harness.handlers.ui_prompt_start?.({}, throwing)).resolves.toBeUndefined()
+    // Why: the marker never went up, so the spinner must not stay suppressed.
+    await harness.callHook('agent_start')
+    await vi.advanceTimersByTimeAsync(80)
+    expect(harness.lastTitle()).toMatch(BRAILLE_RE)
+  })
+
+  it('does not reject when the captured ctx dies before the dialog closes', async () => {
+    const harness = createHarness()
+    let live = true
+    const dying = {
+      ui: {
+        setTitle: (title: string) => {
+          if (!live) {
+            throw new Error('extension runner is no longer active')
+          }
+          harness.titles.push(title)
+        }
+      }
+    }
+
+    await harness.handlers.ui_prompt_start?.({}, dying)
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+    live = false
+    // Why: the close carries no ui, so it falls back to the ctx the modal invalidated.
+    await expect(harness.handlers.ui_prompt_end?.({}, undefined)).resolves.toBeUndefined()
+    // Why: a later turn still recovers a clean title through a live ctx.
+    await harness.callHook('agent_start')
+    await vi.advanceTimersByTimeAsync(80)
+    expect(harness.lastTitle()).toMatch(BRAILLE_RE)
+  })
+
   it('leaves an OMP runtime to its own approval events', () => {
     const harness = createHarness({ processTitle: 'omp' })
 
