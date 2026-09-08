@@ -28,7 +28,12 @@ const IDLE_TITLE = `π - ${SESSION} - orca-app`
 const PROMPT_TITLE = `π ! ${SESSION} - orca-app`
 
 function createHarness(
-  options: { paneKey?: string; isIdle?: () => boolean; kind?: PiAgentKind } = {}
+  options: {
+    paneKey?: string
+    isIdle?: () => boolean
+    kind?: PiAgentKind
+    processTitle?: string
+  } = {}
 ): Harness {
   const titles: string[] = []
   const ctx: TitlebarContext = {
@@ -54,6 +59,8 @@ function createHarness(
     exports: module.exports,
     process: {
       env: { ORCA_PANE_KEY: options.paneKey ?? 'pane-1' },
+      title: options.processTitle ?? 'pi',
+      argv: ['node', 'pi'],
       cwd: () => CWD
     },
     console: { warn: vi.fn(), error: vi.fn(), log: vi.fn() },
@@ -362,5 +369,23 @@ describe('getPiTitlebarExtensionSource', () => {
     await harness.callHook('agent_start')
     await expect(harness.handlers.ui_prompt_start?.({}, undefined)).resolves.toBeUndefined()
     await expect(harness.handlers.ui_prompt_end?.({}, undefined)).resolves.toBeUndefined()
+  })
+
+  it('keeps spinning when the dialog event could not paint the marker', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('agent_start')
+    await harness.handlers.ui_prompt_start?.({}, undefined)
+    // Why: suppressing frames without a marker would freeze the title mid-spinner, which
+    // still reads as working — the opposite of what the marker is for.
+    await vi.advanceTimersByTimeAsync(160)
+    expect(harness.lastTitle()).toMatch(BRAILLE_RE)
+  })
+
+  it('leaves an OMP runtime to its own approval events', () => {
+    const harness = createHarness({ processTitle: 'omp' })
+
+    expect(harness.handlers.ui_prompt_start).toBeDefined()
+    expect(() => harness.handlers.ui_prompt_start?.({}, undefined)).not.toThrow()
   })
 })

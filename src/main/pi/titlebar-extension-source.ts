@@ -1,25 +1,33 @@
 import type { PiAgentKind } from '../../shared/pi-agent-kind'
+import { getPiOmpRuntimeDetectionSourceLines } from './agent-status-runtime-detection-source'
 
 export const ORCA_PI_EXTENSION_FILE = 'orca-titlebar-spinner.ts'
 
 export function getPiTitlebarExtensionSource(kind: PiAgentKind = 'pi'): string {
   // Why: OMP reports input waits through its own approval events, which the status
-  // extension already maps, and it writes this same marker natively.
+  // extension already maps, and it writes this same marker natively. The runtime check
+  // matters as well as the kind: a bare-shell OMP launch runs inside a pi-kind pane.
   const uiPromptHandlers =
     kind === 'pi'
       ? [
           '  // Why: this source is generated and untypechecked, and pi does not document the',
           '  // ctx it passes these two events, so never let a missing ui fail the handler.',
           "  pi.on('ui_prompt_start', async (_event, ctx) => {",
+          '    if (isOmpRuntime()) return',
           '    promptDepth++',
           '    if (promptDepth > 1) return',
-          "    ctx?.ui?.setTitle?.(getMarkedTitle(pi, '!'))",
+          "    if (typeof ctx?.ui?.setTitle !== 'function') return",
+          '    // Why: only hold the spinner off once the marker is actually up, or a ctx',
+          '    // without ui would freeze the title on its last working frame instead.',
+          '    markerPainted = true',
+          "    ctx.ui.setTitle(getMarkedTitle(pi, '!'))",
           '  })',
           '',
           "  pi.on('ui_prompt_end', async (_event, ctx) => {",
-          '    if (promptDepth === 0) return',
+          '    if (isOmpRuntime() || promptDepth === 0) return',
           '    promptDepth--',
           '    if (promptDepth > 0) return',
+          '    markerPainted = false',
           '    // Why: a still-live turn resumes its spinner in place; otherwise the pane is idle',
           '    // and must drop the needs-input marker rather than keep asking for attention.',
           '    if (timer && ctx?.ui?.setTitle) {',
@@ -33,6 +41,7 @@ export function getPiTitlebarExtensionSource(kind: PiAgentKind = 'pi'): string {
       : []
 
   return [
+    ...(kind === 'pi' ? [...getPiOmpRuntimeDetectionSourceLines(`/hook/${kind}`), ''] : []),
     'const BRAILLE_FRAMES = [',
     "  '\\u280b',",
     "  '\\u2819',",
@@ -79,6 +88,7 @@ export function getPiTitlebarExtensionSource(kind: PiAgentKind = 'pi'): string {
     '  // so an inner close cannot release the wait the outer dialog still holds. A new turn',
     '  // cannot start under a dialog holding input focus, so agent_start doubles as recovery.',
     '  let promptDepth = 0',
+    '  let markerPainted = false',
     '  let pendingAgentEndCheck = null',
     '  let pendingAgentEndContext = null',
     '  let agentEndIdleRecheckMs = AGENT_END_IDLE_RECHECK_MS',
@@ -103,7 +113,7 @@ export function getPiTitlebarExtensionSource(kind: PiAgentKind = 'pi'): string {
     '    clearAnimation()',
     '    // Why: settling under an open dialog still leaves the pane waiting on the user, so',
     '    // the idle title must not retire the marker the dialog is holding.',
-    "    ctx.ui.setTitle(promptDepth > 0 ? getMarkedTitle(pi, '!') : getBaseTitle(pi))",
+    "    ctx.ui.setTitle(markerPainted ? getMarkedTitle(pi, '!') : getBaseTitle(pi))",
     '  }',
     '',
     '  function renderFrame(ctx) {',
@@ -117,7 +127,7 @@ export function getPiTitlebarExtensionSource(kind: PiAgentKind = 'pi'): string {
     '    // tick, so a mid-turn dialog would still look busy everywhere the title is the',
     '    // only evidence. Still count the frame so the cap above keeps accruing in',
     '    // wall-clock; the close resumes the animation in place.',
-    '    if (promptDepth > 0) {',
+    '    if (markerPainted) {',
     '      frameIndex++',
     '      return',
     '    }',
@@ -157,6 +167,7 @@ export function getPiTitlebarExtensionSource(kind: PiAgentKind = 'pi'): string {
     '',
     "  pi.on('agent_start', async (_event, ctx) => {",
     '    promptDepth = 0',
+    '    markerPainted = false',
     '    startAnimation(ctx)',
     '  })',
     '',
@@ -200,6 +211,7 @@ export function getPiTitlebarExtensionSource(kind: PiAgentKind = 'pi'): string {
     '',
     "  pi.on('session_shutdown', async (_event, ctx) => {",
     '    promptDepth = 0',
+    '    markerPainted = false',
     '    stopAnimation(ctx)',
     '  })',
     '}',
