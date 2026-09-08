@@ -329,4 +329,24 @@ describe('getPiTitlebarExtensionSource', () => {
   it('leaves the marker to OMP approval events instead of painting it', () => {
     expect(createHarness({ kind: 'omp' }).handlers.ui_prompt_start).toBeUndefined()
   })
+
+  it('still caps idle maintenance while a dialog holds the title', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('auto_compaction_start', { reason: 'idle' })
+    await harness.callHook('ui_prompt_start')
+    // Why: an open dialog must not suspend the cap that stops a stranded spinner.
+    vi.advanceTimersByTime(301_000)
+
+    expect(vi.getTimerCount()).toBe(0)
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+  })
+
+  it('survives a dialog event that carries no ui context', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('agent_start')
+    await expect(harness.handlers.ui_prompt_start?.({}, undefined)).resolves.toBeUndefined()
+    await expect(harness.handlers.ui_prompt_end?.({}, undefined)).resolves.toBeUndefined()
+  })
 })

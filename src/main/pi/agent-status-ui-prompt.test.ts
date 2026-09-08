@@ -168,8 +168,9 @@ describe('Pi UI prompt status', () => {
       }
     )
     await flushPosts()
-    // Why: a lost close would strand the pane on waiting; pi's own default is idle.
-    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
+    // Why: a lost close would strand the pane on waiting, but done would ring the
+    // completion bell for a turn that may still be running.
+    expect(harness.statuses.at(-1)?.payload.state).toBe('working')
   })
 
   it('recovers on a new turn when a modal close was lost', async () => {
