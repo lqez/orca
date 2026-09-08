@@ -2,7 +2,8 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import {
   SettingsRow,
   SettingsSegmentedControl,
-  SettingsSubsectionHeader
+  SettingsSubsectionHeader,
+  SettingsSwitchRow
 } from './SettingsFormControls'
 import { SearchableSetting } from './SearchableSetting'
 import { translate } from '@/i18n/i18n'
@@ -88,6 +89,45 @@ export function TerminalRenderingSection({
                   }
                 ]}
               />
+            }
+          />
+        </SearchableSetting>
+
+        <SearchableSetting
+          title={translate(
+            'auto.components.settings.TerminalRenderingSection.6d4c55bacc',
+            'Inline Images'
+          )}
+          description={translate(
+            'auto.components.settings.TerminalRenderingSection.fffab5890b',
+            'Render inline terminal images using SIXEL, iTerm2 (IIP), and Kitty graphics protocols. The decoder loads on demand and idle panes are unaffected.'
+          )}
+          keywords={[
+            'terminal',
+            'image',
+            'images',
+            'inline',
+            'sixel',
+            'iterm',
+            'iip',
+            'kitty',
+            'graphics',
+            'picture'
+          ]}
+          className="py-2"
+        >
+          <SettingsSwitchRow
+            label={translate(
+              'auto.components.settings.TerminalRenderingSection.6d4c55bacc',
+              'Inline Images'
+            )}
+            description={translate(
+              'auto.components.settings.TerminalRenderingSection.fffab5890b',
+              'Render inline terminal images using SIXEL, iTerm2 (IIP), and Kitty graphics protocols. The decoder loads on demand and idle panes are unaffected.'
+            )}
+            checked={settings.terminalInlineImages !== false}
+            onChange={() =>
+              updateSettings({ terminalInlineImages: settings.terminalInlineImages === false })
             }
           />
         </SearchableSetting>
