@@ -92,11 +92,12 @@ describe('Pi UI prompt status', () => {
     expect(harness.statuses.map((status) => status?.payload.state)).toEqual(['waiting', 'done'])
   })
 
-  it('does not infer done when the context cannot establish idleness', async () => {
+  it('returns a pane that never ran a turn to done when idleness is unreadable', async () => {
     const harness = createHarness()
     await post(harness, 'ui_prompt_start')
     await post(harness, 'ui_prompt_end')
-    expect(harness.statuses.at(-1)?.payload.state).toBe('working')
+    // Why: no turn has started, so the pane is idle — reporting working would spin forever.
+    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
   })
 
   it('lets the normal settlement hook finish work after a modal closes', async () => {
@@ -168,9 +169,28 @@ describe('Pi UI prompt status', () => {
       }
     )
     await flushPosts()
-    // Why: a lost close would strand the pane on waiting, but done would ring the
-    // completion bell for a turn that may still be running.
+    // Why: a lost close would strand the pane on waiting; no turn is running, so done.
+    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
+  })
+
+  it('keeps a mid-turn modal working when its runner throws on close', async () => {
+    const harness = createHarness()
+    await post(harness, 'agent_start')
+    await post(harness, 'ui_prompt_start')
+    await harness.callHook(
+      'ui_prompt_end',
+      {},
+      {
+        isIdle: () => {
+          throw new Error('extension runner is no longer active')
+        }
+      }
+    )
+    await flushPosts()
+    // Why: the turn is still in flight, so done would ring the completion bell early.
     expect(harness.statuses.at(-1)?.payload.state).toBe('working')
+    await post(harness, 'agent_settled')
+    expect(harness.statuses.at(-1)?.payload.state).toBe('done')
   })
 
   it('recovers on a new turn when a modal close was lost', async () => {

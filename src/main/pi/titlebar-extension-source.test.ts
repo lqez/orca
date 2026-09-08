@@ -382,6 +382,26 @@ describe('getPiTitlebarExtensionSource', () => {
     expect(harness.lastTitle()).toMatch(BRAILLE_RE)
   })
 
+  it('marks a nested dialog when the outer one could not paint', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('agent_start')
+    await harness.handlers.ui_prompt_start?.({}, undefined)
+    await harness.callHook('ui_prompt_start')
+    // Why: the outer ctx cannot decide that the whole stack stays unmarked.
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+  })
+
+  it('clears the marker through the opening ctx when the close carries none', async () => {
+    const harness = createHarness()
+
+    await harness.callHook('ui_prompt_start')
+    expect(harness.lastTitle()).toBe(PROMPT_TITLE)
+    await harness.handlers.ui_prompt_end?.({}, undefined)
+    // Why: otherwise the pane asks for attention until the next turn.
+    expect(harness.lastTitle()).toBe(IDLE_TITLE)
+  })
+
   it('leaves an OMP runtime to its own approval events', () => {
     const harness = createHarness({ processTitle: 'omp' })
 
